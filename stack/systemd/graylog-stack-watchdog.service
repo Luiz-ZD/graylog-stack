@@ -1,0 +1,8 @@
+[Unit]
+Description=Graylog stack watchdog (estado failed = problema)
+After=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/graylog-stack/stack.env
+ExecStart=/opt/graylog-stack/scripts/watchdog.sh

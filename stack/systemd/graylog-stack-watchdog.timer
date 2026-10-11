@@ -1,0 +1,10 @@
+[Unit]
+Description=Roda o watchdog do Graylog a cada minuto
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=1min
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

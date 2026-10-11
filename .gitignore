@@ -1,0 +1,10 @@
+*.tar.gz
+build/
+*.env
+!stack/versions.env
+!stack/install.conf.example
+*.pem
+secrets/
+stack/exporter/rclone
+__pycache__/
+install.conf

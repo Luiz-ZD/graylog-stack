@@ -1,0 +1,22 @@
+# Copie para install.conf e preencha. Valores "TROCAR" são placeholders.
+HOST_IP=192.0.2.20
+TZ=America/Sao_Paulo
+NTP_SERVERS=""                 # ex.: "192.0.2.1 192.0.2.2" (servidor NTP interno)
+GL_HEAP=4g
+OS_HEAP=4g
+PORT_HTTP=9000
+PORT_WIN=3514
+PORT_LIN=4514
+EXPORT_ENABLED=false
+OCI_NAMESPACE=TROCAR_NAMESPACE
+OCI_BUCKET=TROCAR_BUCKET
+OCI_PREFIX=logs/
+OCI_REGION=sa-saopaulo-1
+OCI_COMPARTMENT=TROCAR_COMPARTMENT_OCID
+OCI_CONFIG_FILE=/root/.oci/config   # ~/.oci/config atual (user, fingerprint, tenancy, region, key_file)
+OCI_PROFILE=DEFAULT
+OCI_KEY_FILE=/root/.oci/oci_api_key.pem
+EXPORT_FILTER='level:[0 TO 3] OR win_level:(Critical OR Error OR Warning) OR win_event_type:16'
+EXPORT_EXCLUDE_SOURCES=''   # hosts (separados por virgula) que NAO devem ir para o bucket
+WATCHDOG_THRESHOLD_MIN=10
+WATCHDOG_IDLE_CHECK=true       # false = nao alertar "sem eventos novos" (clientes muito quietos)

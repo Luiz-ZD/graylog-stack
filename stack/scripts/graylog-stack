@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+OPT="${STACK_OPT:-/opt/graylog-stack}"; ETC="${STACK_ETC:-/etc/graylog-stack}"; VAR="${STACK_VAR:-/var/lib/graylog-stack}"
+dc() { docker compose --env-file "$ETC/stack.env" -f "$OPT/docker-compose.yml" -p "${COMPOSE_PROJECT:-graylog-stack}" "$@"; }
+case "${1:-}" in
+  status) dc ps; echo; jq . "$VAR/export/state/status.json" 2>/dev/null || echo "exportador sem status"; echo; echo "vigia:"; cat "$VAR/watchdog.json" 2>/dev/null || true ;;
+  proof)  dc exec -T exporter python -m glexport.proof "${2:-10}" ;;
+  export) case "${2:-}" in
+            on)  sed -i 's/^EXPORT_ENABLED=.*/EXPORT_ENABLED=true/' "$ETC/stack.env"; rm -f "$VAR/export/state/checkpoint"; dc up -d exporter; echo "exportador LIGADO (inicia do minuto atual, sem backfill)";;
+            off) sed -i 's/^EXPORT_ENABLED=.*/EXPORT_ENABLED=false/' "$ETC/stack.env"; dc up -d exporter; echo "exportador DESLIGADO";;
+            *) echo "uso: graylog-stack export on|off"; exit 2;; esac ;;
+  logs)   dc logs --tail "${2:-100}" -f exporter ;;
+  version) grep -E '^[A-Z]+_IMAGE=' "$ETC/stack.env" ;;
+  *) echo "uso: graylog-stack status|proof [N]|export on|off|logs|version"; exit 2 ;;
+esac

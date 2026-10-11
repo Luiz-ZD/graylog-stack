@@ -1,0 +1,116 @@
+name: graylog-stack
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "50m", max-file: "3" }
+networks:
+  internal: { internal: true }
+  public: {}
+services:
+  mongodb:
+    image: ${MONGO_IMAGE}
+    pull_policy: never
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: graylog
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+      TZ: ${TZ}
+    volumes: ["${STACK_VAR}/mongo:/data/db:Z"]
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet -u graylog -p $$MONGO_INITDB_ROOT_PASSWORD --authenticationDatabase admin --eval 'db.adminCommand({ping:1}).ok' | grep -q 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    logging: *logging
+  opensearch:
+    image: ${OPENSEARCH_IMAGE}
+    pull_policy: never
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      plugins.security.disabled: "true"
+      bootstrap.memory_lock: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms${OS_HEAP} -Xmx${OS_HEAP}"
+      cluster.routing.allocation.disk.watermark.low: "85%"
+      cluster.routing.allocation.disk.watermark.high: "90%"
+      cluster.routing.allocation.disk.watermark.flood_stage: "95%"
+      action.auto_create_index: "false"
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      TZ: ${TZ}
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    volumes: ["${STACK_VAR}/opensearch:/usr/share/opensearch/data:Z"]
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' >/dev/null"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+    logging: *logging
+  graylog:
+    image: ${GRAYLOG_IMAGE}
+    pull_policy: never
+    restart: unless-stopped
+    depends_on:
+      mongodb: { condition: service_healthy }
+      opensearch: { condition: service_healthy }
+    entrypoint: ["/usr/bin/tini", "--", "/docker-entrypoint.sh"]
+    environment:
+      GRAYLOG_NODE_ID_FILE: /usr/share/graylog/data/data/node-id
+      GRAYLOG_PASSWORD_SECRET: ${GRAYLOG_PASSWORD_SECRET}
+      GRAYLOG_ROOT_PASSWORD_SHA2: ${GRAYLOG_ROOT_PASSWORD_SHA2}
+      GRAYLOG_ROOT_TIMEZONE: ${TZ}
+      GRAYLOG_HTTP_BIND_ADDRESS: 0.0.0.0:9000
+      GRAYLOG_HTTP_EXTERNAL_URI: http://${HOST_IP}:9000/
+      GRAYLOG_ELASTICSEARCH_HOSTS: http://opensearch:9200
+      GRAYLOG_MONGODB_URI: mongodb://graylog:${MONGO_PASSWORD}@mongodb:27017/graylog?authSource=admin
+      GRAYLOG_MESSAGE_JOURNAL_MAX_SIZE: 2gb
+      GRAYLOG_SERVER_JAVA_OPTS: "-Xms${GL_HEAP} -Xmx${GL_HEAP} -XX:+UseG1GC -Djdk.tls.acknowledgeCloseNotify=true"
+      TZ: ${TZ}
+    ports:
+      - "${PORT_HTTP}:9000/tcp"
+      - "${PORT_WIN}:3514/tcp"
+      - "${PORT_LIN}:4514/udp"
+    volumes: ["${STACK_VAR}/graylog:/usr/share/graylog/data:Z"]
+    networks: [internal, public]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9000/api/system/lbstatus | grep -qi alive"]
+      interval: 15s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
+    logging: *logging
+  exporter:
+    image: ${EXPORTER_IMAGE}
+    pull_policy: never
+    restart: unless-stopped
+    depends_on:
+      graylog: { condition: service_healthy }
+    environment:
+      GRAYLOG_URL: http://graylog:9000
+      GRAYLOG_TOKEN_FILE: /run/secrets/exporter.token
+      EXPORT_ENABLED: ${EXPORT_ENABLED:-false}
+      EXPORT_FILTER: ${EXPORT_FILTER}
+      EXPORT_EXCLUDE_SOURCES: ${EXPORT_EXCLUDE_SOURCES}
+      OCI_NAMESPACE: ${OCI_NAMESPACE:-x}
+      OCI_BUCKET: ${OCI_BUCKET:-x}
+      OCI_PREFIX: ${OCI_PREFIX:-}
+      OCI_REGION: ${OCI_REGION:-sa-saopaulo-1}
+      OCI_COMPARTMENT: ${OCI_COMPARTMENT:-x}
+      OCI_PROFILE: ${OCI_PROFILE:-DEFAULT}
+      OCI_ENDPOINT: ${OCI_ENDPOINT:-}
+      RCLONE_CONF_OVERRIDE: ${RCLONE_CONF_OVERRIDE:-}
+      TZ: ${TZ}
+    volumes:
+      - "${STACK_ETC}/exporter.token:/run/secrets/exporter.token:ro"
+      - "${STACK_ETC}/oci:/etc/oci:ro"
+      - "${STACK_VAR}/export:/data:Z"
+    networks: [internal, public]   # public = so saida para o OCI (nenhuma porta publicada)
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import json,time;s=json.load(open('/data/state/status.json'));exit(0 if time.time()-s['updated_at']<180 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    logging: *logging

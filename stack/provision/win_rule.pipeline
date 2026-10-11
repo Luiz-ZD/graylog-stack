@@ -1,0 +1,9 @@
+rule "win_extrai_campos"
+when
+  contains(to_string($message.message), "AgentDevice=WindowsLog")
+then
+  let l = regex("\\tLevel=([A-Za-z]+)\\t", to_string($message.message));
+  set_field("win_level", l["0"]);
+  let t = regex("\\tEventType=([0-9]+)\\t", to_string($message.message));
+  set_field("win_event_type", to_long(t["0"]));
+end
