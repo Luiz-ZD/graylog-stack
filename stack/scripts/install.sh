@@ -28,10 +28,14 @@ if [ "$LAB" = 0 ]; then
     for s in $NTP_SERVERS; do grep -q "^server $s" /etc/chrony.conf || run sed -i "1i server $s iburst" /etc/chrony.conf; done
     run systemctl enable --now chronyd; run systemctl restart chronyd; [ "$DRY" = 1 ] || sleep 5
   fi
-  systemctl is-active --quiet chronyd || die "chronyd inativo; informe NTP_SERVERS em install.conf"
-  chronyc waitsync 6 0.5 >/dev/null 2>&1 || warn "chrony ainda sem sincronismo; confira NTP_SERVERS"
-  off=$(chronyc tracking | awk '/System time/{print $4}'); ok "desvio de relógio ${off}s"
-  awk -v o="$off" 'BEGIN{exit !(o>2)}' && die "relógio desviado > 2 s; o OCI rejeita requisições assinadas"
+  if [ "$DRY" = 1 ]; then
+    echo "[dry]  (verificação de sincronismo e desvio do relógio roda na instalação real, depois de iniciar o chronyd)"
+  else
+    systemctl is-active --quiet chronyd || die "chronyd inativo; informe NTP_SERVERS em install.conf"
+    chronyc waitsync 6 0.5 >/dev/null 2>&1 || warn "chrony ainda sem sincronismo; confira NTP_SERVERS"
+    off=$(chronyc tracking | awk '/System time/{print $4}'); ok "desvio de relógio ${off}s"
+    awk -v o="$off" 'BEGIN{exit !(o>2)}' && die "relógio desviado > 2 s; o OCI rejeita requisições assinadas"
+  fi
 fi
 need_rpm=0; command -v jq >/dev/null || need_rpm=1; docker compose version >/dev/null 2>&1 || need_rpm=1
 RPMS="docker-ce docker-ce-cli containerd.io docker-compose-plugin jq"
@@ -52,6 +56,10 @@ fi
 mkdir -p "$STACK_OPT" "$STACK_ETC/oci" "$STACK_VAR"/{mongo,opensearch,graylog,export/state,export/spool}; chmod 700 "$STACK_ETC"
 chown -R 1000:1000 "$STACK_VAR/opensearch"; chown -R 1100:1100 "$STACK_VAR/graylog"; chown -R 999:999 "$STACK_VAR/mongo"
 cp -a "$HERE/docker-compose.yml" "$HERE/scripts" "$HERE/provision" "$HERE/versions.env" "$STACK_OPT/"
+# cp -a preserva o rotulo SELinux de origem (ex.: admin_home_t em /root), que o systemd nao consegue executar
+if [ "$LAB" = 0 ] && command -v restorecon >/dev/null && [ "$(getenforce 2>/dev/null || echo Disabled)" != Disabled ]; then
+  restorecon -R "$STACK_OPT" && ok "contexto SELinux de $STACK_OPT restaurado"
+fi
 
 echo "== Segredos e .env =="
 ENVF="$STACK_ETC/stack.env"

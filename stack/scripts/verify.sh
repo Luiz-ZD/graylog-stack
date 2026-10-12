@@ -16,6 +16,8 @@ if [ "${1:-}" = "--oci" ]; then
   X="docker exec ${P}-exporter-1 rclone --config /run/rclone.conf"
   chk "OCI: gravar objeto de teste" "docker cp /tmp/verify.txt ${P}-exporter-1:/tmp/v.txt && $X copyto /tmp/v.txt $R:${OCI_BUCKET}/${obj}"
   chk "OCI: ler de volta"           "$X lsjson $R:${OCI_BUCKET}/${obj} | jq -e 'length==1'"
-  chk "OCI: apagar objeto de teste" "$X deletefile $R:${OCI_BUCKET}/${obj}"
+  # Apagar exige permissao extra no bucket e o exportador NAO precisa dela (so grava/le): vira aviso, nao falha.
+  if $X deletefile "$R:${OCI_BUCKET}/${obj}" >/dev/null 2>&1; then echo "[ok]    OCI: apagar objeto de teste"
+  else echo "[aviso] OCI: sem permissao para apagar o objeto de teste (isso NAO impede o exportador). Remova manualmente: ${OCI_BUCKET}/${obj}"; fi
 fi
 [ $F = 0 ] && echo VERIFY_OK || { echo VERIFY_FALHOU; exit 1; }

@@ -5,4 +5,4 @@ After=docker.service
 [Service]
 Type=oneshot
 EnvironmentFile=-/etc/graylog-stack/stack.env
-ExecStart=/opt/graylog-stack/scripts/watchdog.sh
+ExecStart=/bin/bash /opt/graylog-stack/scripts/watchdog.sh

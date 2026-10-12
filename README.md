@@ -150,6 +150,16 @@ graylog-stack version       # imagens em uso
 - **Vigia:** uma unit systemd (`graylog-stack-watchdog`) roda a cada minuto e entra em **failed** quando algo está errado (container parado, input fora, sem eventos novos, spool envelhecido, checkpoint atrasado, lacuna de dados, erro do último envio) — qualquer ferramenta de monitoração que observe o estado de units systemd consegue alertar. Volta sozinha ao normal. Também escreve `watchdog.json` e `status.json`.
 - **Retenção local:** no máximo ~10 GB (10 índices de 1 GB); o histórico vive no bucket.
 
+## Calibrando o filtro (importante em produção)
+O filtro padrão é um ponto de partida. Com tráfego real, **um ou dois tipos de mensagem costumam dominar o volume** (um agente de terceiros em falha permanente, erros internos de uma ferramenta de telemetria), enquanto problemas operacionais reais (serviço caindo em loop) são registrados pelo `systemd` como nível 4 ou 5 e ficam de fora. Para medir:
+
+```bash
+scripts/analisa-filtro.sh 60    # últimos 60 min, lê do Graylog (ou: ETC=... para outro diretório)
+```
+Ele mostra (A) exatamente o que o filtro envia, com os tipos mais repetidos e quantos hosts os geram, e (B) o que **não** foi exportado mas tem cara de importante: palavras de problema em Linux/rede, eventos de segurança do Windows (contas, grupos, log apagado) e o volume de `warning`. Ajuste `EXPORT_FILTER` no `install.conf` e rode o `install.sh` de novo (mantém segredos e estado); **valide o filtro no Graylog antes**, porque uma consulta inválida faz todos os envios falharem.
+
+> Um consumidor externo pode **apagar os arquivos do bucket** minutos depois do envio. O `ledger.jsonl` guarda o tamanho e o MD5 conferidos no instante do upload; o `proof` pode marcar `FALTA` para arquivos já consumidos, e isso não é perda de envio.
+
 ## Segurança
 
 - Sem segredos no repositório nem no bundle; segredos gerados na instalação em `/etc/graylog-stack` (modo 600).
@@ -164,8 +174,8 @@ Unitários (CSV byte a byte, UTC, janelas, checkpoint, query, fluxo de upload/fa
 
 ## Limites conhecidos
 
-- **Autenticação real no OCI** não é testada pelo laboratório: ele usa um bucket S3 de teste e um stub do endpoint (a configuração do rclone foi confirmada contra o endpoint real do OCI, que respondeu `401` a uma chave de teste — ou seja, caminho, TLS, região e assinatura estão corretos; faltam as credenciais e a policy IAM do ambiente). `verify.sh --oci` faz esse teste no destino.
-- **SELinux em modo enforcing** ainda não foi exercitado no laboratório.
+- **Autenticação real no OCI** não é testada pelo laboratório: ele usa um bucket S3 de teste e um stub do endpoint. Em produção, `verify.sh --oci` confirmou gravação e leitura no bucket com uma chave de API comum. A permissão de **apagar** não é necessária (o exportador só grava arquivos novos), então a falta dela é apenas um aviso.
+- **SELinux em modo enforcing:** validado numa instalação real em RHEL 9.6 (containers, instalador e vigia). Esse teste achou um defeito que o laboratório (SELinux desligado) não via: o `systemd` não executa scripts com rótulo `admin_home_t` copiados de `/root`; o instalador agora roda `restorecon` e a unit chama o script via `/bin/bash`.
 - O teste de carga foi feito com heaps de 1 GB, na mesma máquina do emissor. Meça no seu tráfego.
 - O OpenSearch roda sem o plugin de segurança (ver [Segurança](#segurança)).
 - Hosts que enviam syslog sem fuso (RFC 3164) ficam com `timestamp` horas à frente/atrás; a **janela** usa o horário de recebimento, mas a coluna `timestamp` do CSV continua sendo a da mensagem. Corrija no `rsyslog` de origem (envie com fuso).
@@ -174,6 +184,7 @@ Unitários (CSV byte a byte, UTC, janelas, checkpoint, query, fluxo de upload/fa
 
 - **1.0:** após a migração real confirmada.
 - Versão **Podman** (com comparativo de consumo e tempo de subida contra o Docker).
+- `proof` que distingue "removido depois do envio confirmado"; envio tolerante a arquivo consumido logo após o upload.
 - Página de administração **somente leitura** (estado, últimos envios, spool, motivos do vigia).
 
 ## Licença
