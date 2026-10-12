@@ -160,6 +160,11 @@ Ele mostra (A) exatamente o que o filtro envia, com os tipos mais repetidos e qu
 
 > Um consumidor externo pode **apagar os arquivos do bucket** minutos depois do envio. O `ledger.jsonl` guarda o tamanho e o MD5 conferidos no instante do upload; o `proof` pode marcar `FALTA` para arquivos já consumidos, e isso não é perda de envio.
 
+## Benchmark Docker × Podman
+A mesma stack, o mesmo `docker-compose.yml` e o mesmo bundle de imagens rodaram em Docker 29 e Podman 5.8, com a mesma carga (2.500 msg/s por 5 min). Resumo: **desempenho equivalente** (CPU, entrega de logs, recuperação de crash); o Podman **não tem daemon** (~110 MB parado no Docker) e ocupa **~37% menos disco** de imagens; o Docker **sobe mais rápido** (58 s contra 64–81 s). A memória dos containers é um empate. Metodologia, ressalvas e dados brutos em [`docs/bench/RESULTADOS.md`](docs/bench/RESULTADOS.md); reprodução em `stack/bench/` (`run-all.sh`, `run-cold.sh`, `compare.py`, `chart.py`).
+
+![Docker vs Podman](docs/bench/docker-vs-podman.png)
+
 ## Segurança
 
 - Sem segredos no repositório nem no bundle; segredos gerados na instalação em `/etc/graylog-stack` (modo 600).
