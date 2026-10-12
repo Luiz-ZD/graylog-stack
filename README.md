@@ -2,7 +2,7 @@
 
 Graylog 7.1 + OpenSearch 2.19 + MongoDB 7.0 em Docker Compose, empacotável como **bundle offline**, com um **exportador por janela de tempo** que envia CSVs ao **OCI Object Storage** e deixa uma **prova de envio** auditável.
 
-**Status: 0.9 (release candidate)** — testado em laboratório; veja [Limites conhecidos](#limites-conhecidos).
+**Status: 1.0** — testado em laboratório e em produção (migração real concluída em RHEL 9.6 com SELinux *Enforcing*); veja [Limites conhecidos](#limites-conhecidos).
 
 > **English summary.** A self-contained Graylog stack (Docker Compose) that installs offline with one command, provisions its own inputs, retention and pipeline through the API, and ships minute-by-minute CSV exports to an OCI Object Storage bucket. The exporter uses receive-time windows with a checkpoint, a spool folder with verified uploads, a per-file ledger, a systemd watchdog and a `proof` command. Documentation is in Portuguese; the code and comments are mostly Portuguese too.
 
@@ -187,8 +187,7 @@ Unitários (CSV byte a byte, UTC, janelas, checkpoint, query, fluxo de upload/fa
 
 ## Roteiro
 
-- **1.0:** após a migração real confirmada.
-- Versão **Podman** (com comparativo de consumo e tempo de subida contra o Docker).
+- **1.0 (atual):** migração real concluída. O comparativo Docker × Podman está em [docs/bench](docs/bench); Podman nativo (Quadlet, *rootless*, SELinux *Enforcing*) fica como trabalho futuro.
 - `proof` que distingue "removido depois do envio confirmado"; envio tolerante a arquivo consumido logo após o upload.
 - Página de administração **somente leitura** (estado, últimos envios, spool, motivos do vigia).
 
